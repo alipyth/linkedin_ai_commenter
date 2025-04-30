@@ -1,9 +1,8 @@
 // Default settings
 let settings = {
-  service: 'openai',       // 'openai' or 'ollama'
-  openaiKey: '',           // Your OpenAI API key
-  ollamaModel: 'deepseek-r1:7b', // Ollama model name
-  temperature: 0.7         // Generation temperature
+  openaiKey: '',         // Your OpenAI API key
+  model: 'gpt-4o-mini',  // OpenAI model
+  temperature: 0.7       // Generation temperature
 };
 
 // Load saved settings from chrome.storage
@@ -20,7 +19,7 @@ chrome.storage.sync.get(['settings'], (result) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
     case 'generate_comment':
-      generateComment(request.text)
+      generateWithOpenAI(request.text)
         .then(comment => sendResponse({ comment }))
         .catch(error => sendResponse({ error: error.message }));
       return true; // Keep channel open for async
@@ -36,7 +35,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: true });
         }
       });
-      return true; // Async response
+      return true;
 
     case 'get_settings':
       sendResponse({ settings });
@@ -48,15 +47,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Main generator dispatcher
-async function generateComment(text) {
-  if (settings.service === 'openai') {
-    return await generateWithOpenAI(text);
-  } else {
-    return await generateWithOllama(text);
-  }
-}
-
 // Generate comment via OpenAI API
 async function generateWithOpenAI(text) {
   if (!settings.openaiKey) {
@@ -64,9 +54,11 @@ async function generateWithOpenAI(text) {
   }
 
   const payload = {
-    model: 'gpt-4o-mini',
+    model: settings.model,
     temperature: settings.temperature,
-    messages: [{ role: 'user', content: `،برای این پست یک کامنت محاوره ای بنویس انگار متخصصی توی مکالمه و موضوعی که این پست بهش اشاره کرده ! جوری که متوجه نشه این رو هوش مصنوعی نوشته و بعضی وقتا از :) هم استفاده کن :\n\n${text}` }]
+    messages: [
+      { role: 'user', content: `برای این پست یک کامنت جذاب بنویس که بتونه ترغیب‌کننده باشه :\n\n${text}` }
+    ]
   };
 
   console.log('Sending to OpenAI:', payload);
@@ -88,57 +80,4 @@ async function generateWithOpenAI(text) {
   const data = await response.json();
   console.log('OpenAI result:', data);
   return data.choices?.[0]?.message?.content || '';
-}
-
-// Generate comment via local Ollama chat endpoint
-async function generateWithOllama(text) {
-  if (!settings.ollamaModel) {
-    throw new Error('Ollama model is not set');
-  }
-
-  const payload = {
-    model: settings.ollamaModel,
-    messages: [{ role: 'user', content: text }],
-    temperature: settings.temperature,
-    stream: false
-  };
-
-  const headers = { 'Content-Type': 'application/json' };
-  const hosts = ['http://localhost:11434', 'http://127.0.0.1:11434'];
-  let lastError;
-
-  for (const host of hosts) {
-    const url = `${host}/api/chat`;
-    console.log(`Attempting Ollama chat request to: ${url}`);
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Ollama error ${response.status}: ${errText}`);
-      }
-
-      const data = await response.json();
-      console.log('Ollama chat result:', data);
-      if (!('response' in data)) {
-        throw new Error('Ollama returned no response field');
-      }
-
-      try {
-        return JSON.parse(data.response);
-      } catch {
-        return data.response;
-      }
-
-    } catch (err) {
-      console.warn(`Request to ${host} failed:`, err);
-      lastError = err;
-    }
-  }
-
-  throw new Error(`All Ollama chat requests failed. Last error: ${lastError.message}`);
 }
