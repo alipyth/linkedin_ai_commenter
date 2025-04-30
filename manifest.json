@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "AI Comment Generator",
+  "version": "1.0",
+  "description": "تولید خودکار کامنت با استفاده از OpenAI و Ollama",
+  "permissions": [
+  "activeTab", 
+  "scripting", 
+  "storage", 
+  "unlimitedStorage",
+  "http://localhost:11434/",
+  "http://127.0.0.1:11434/"
+],
+  "host_permissions": [
+    "http://127.0.0.1:11434/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
